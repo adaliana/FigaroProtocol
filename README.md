@@ -12,8 +12,8 @@ This repository contains protocol source code and tests only.
 - Run tests: `forge test`
 
 ### Local Setup
-- Install deps once: `forge install foundry-rs/forge-std OpenZeppelin/openzeppelin-contracts`
-- Format code: `forge fmt` (CI enforces `forge fmt --check`)
+- Install deps once: `forge install foundry-rs/forge-std@v1.9.6 OpenZeppelin/openzeppelin-contracts@v5.0.2`
+- Format code: `forge fmt` (CI formats on PRs)
 
 ## Architecture
 - CEI-first state machine in `src/Figaro.sol` with lifecycle events `SrpCreated` and `SrpStateChanged`.
