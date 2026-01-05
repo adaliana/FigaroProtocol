@@ -4,6 +4,7 @@ cache/
 
 # Analysis outputs
 analysis/
+.github/branch-protection.tmp.json
 
 # Node
 node_modules/

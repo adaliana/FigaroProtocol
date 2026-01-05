@@ -6,6 +6,7 @@ out = "out"
 optimizer = true
 optimizer_runs = 200
 evm_version = "cancun"
+solc_version = "0.8.30"
 
 remappings = [
   "forge-std/=lib/forge-std/src/",
