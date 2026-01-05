@@ -1,0 +1,12 @@
+# Foundry
+out/
+cache/
+
+# Analysis outputs
+analysis/
+
+# Node
+node_modules/
+
+# macOS
+.DS_Store
