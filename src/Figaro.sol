@@ -1,20 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {
-    IERC20
-} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import {
-    SafeERC20
-} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
-import {
-    ReentrancyGuard
-} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import {SRPFees} from "./SRPFees.sol";
 import {IMechanism} from "./IMechanism.sol";
-import {
-    ECDSA
-} from "lib/openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol";
+import {ECDSA} from "lib/openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol";
 import {Address} from "lib/openzeppelin-contracts/contracts/utils/Address.sol";
 
 contract Figaro is ReentrancyGuard {
@@ -100,11 +92,7 @@ contract Figaro is ReentrancyGuard {
     /**
      * @notice Emitted when a third party seller approves or revokes consent for a root seller
      */
-    event AddSrpConsent(
-        address indexed thirdPartySeller,
-        address indexed rootSeller,
-        bool approved
-    );
+    event AddSrpConsent(address indexed thirdPartySeller, address indexed rootSeller, bool approved);
 
     /**
      * @notice Emitted when a buyer places a per-SRP cleanup deposit at release
@@ -136,11 +124,7 @@ contract Figaro is ReentrancyGuard {
      * @notice Emitted when a process is archived and caller is paid from cleanup deposit
      */
     event ProcessArchived(
-        uint256 indexed processId,
-        address indexed caller,
-        address token,
-        uint256[] srpIds,
-        uint256 payout
+        uint256 indexed processId, address indexed caller, address token, uint256[] srpIds, uint256 payout
     );
 
     // =============================================================
@@ -161,8 +145,7 @@ contract Figaro is ReentrancyGuard {
     // Per-SRP total process value (kept separate to preserve public getter shape)
     mapping(uint256 => uint256) public srpTotalProcessValue;
     // third party seller -> rootSeller -> approved
-    mapping(address => mapping(address => bool))
-        public rootSellerThirdPartyConsent;
+    mapping(address => mapping(address => bool)) public rootSellerThirdPartyConsent;
 
     // per-seller replay protection for signed payloads
     mapping(address => uint256) public sellerNonces;
@@ -201,11 +184,11 @@ contract Figaro is ReentrancyGuard {
     // =============================================================
 
     /// @notice Create a new process with a root SRP and collect seller coordination capital + fee
-    function createProcess(
-        address buyer,
-        uint256 amount,
-        address token
-    ) external nonReentrant returns (uint256 processId, uint256 srpId) {
+    function createProcess(address buyer, uint256 amount, address token)
+        external
+        nonReentrant
+        returns (uint256 processId, uint256 srpId)
+    {
         address seller = msg.sender;
         require(buyer != address(0), "buyer required");
         require(buyer != seller, "seller==buyer");
@@ -215,14 +198,7 @@ contract Figaro is ReentrancyGuard {
         processId = processCount++;
 
         // Effects (CEI): create and register the root SRP with zero balance
-        srpId = _createAndRegisterSrp(
-            processId,
-            seller,
-            buyer,
-            amount,
-            token,
-            amount
-        );
+        srpId = _createAndRegisterSrp(processId, seller, buyer, amount, token, amount);
 
         // Probe token behavior: perform a tiny transfer round-trip of 1 unit to
         // detect fee-on-transfer or other non-standard ERC-20 semantics. If the
@@ -238,9 +214,7 @@ contract Figaro is ReentrancyGuard {
             // Only probe when seller has at least 1 token and approved >= totalProbe + 1
             // so consuming 1 unit won't cause later `collect` calls to fail due
             // to allowance reduction.
-            if (
-                tokenIfc.balanceOf(seller) >= 1 && allowance >= totalProbe + 1
-            ) {
+            if (tokenIfc.balanceOf(seller) >= 1 && allowance >= totalProbe + 1) {
                 uint256 preThis = tokenIfc.balanceOf(address(this));
                 tokenIfc.safeTransferFrom(seller, address(this), 1);
                 uint256 postThis = tokenIfc.balanceOf(address(this));
@@ -250,10 +224,7 @@ contract Figaro is ReentrancyGuard {
                 // strict equality here but this is an intentional protocol
                 // invariant. Silence the detector on this line.
                 // slither-disable-next-line incorrect-equality
-                require(
-                    actual == 1,
-                    "token not supported: fee-on-transfer or nonstandard ERC20"
-                );
+                require(actual == 1, "token not supported: fee-on-transfer or nonstandard ERC20");
                 // return the probe amount to the seller to avoid leaving dust
                 if (actual > 0) {
                     tokenIfc.safeTransfer(seller, actual);
@@ -266,16 +237,7 @@ contract Figaro is ReentrancyGuard {
         _collectAndSetCoordination(srpId, token, seller, coordinationCapital);
 
         // Finalize: compute and emit creation events
-        _finalizeSrpCreation(
-            srpId,
-            processId,
-            0,
-            seller,
-            buyer,
-            token,
-            amount,
-            coordinationCapital
-        );
+        _finalizeSrpCreation(srpId, processId, 0, seller, buyer, token, amount, coordinationCapital);
 
         return (processId, srpId);
     }
@@ -303,11 +265,7 @@ contract Figaro is ReentrancyGuard {
 
         // Emit SrpStateChanged for Locked state (dual emission)
         bytes32 lockVersion = keccak256(
-            abi.encodePacked(
-                _srps[srpId].srpHash,
-                uint256(State.Locked),
-                _srps[srpId].coordinationCapitalBalance
-            )
+            abi.encodePacked(_srps[srpId].srpHash, uint256(State.Locked), _srps[srpId].coordinationCapitalBalance)
         );
         // principal = buyer for Lock (buyer-centric)
         emit SrpStateChanged(
@@ -330,10 +288,11 @@ contract Figaro is ReentrancyGuard {
     /// @dev Buyer pays `perSrpDeposit * srpCount` to this contract; each SRP is
     /// tagged with an archivable timestamp. This is a minimal port of the
     /// UnifiedSRP flow for cleanup deposits.
-    function releaseProcessWithCleanupDeposit(
-        uint256 processId,
-        uint256 perSrpDeposit
-    ) external nonReentrant returns (uint256[] memory releasedSrps) {
+    function releaseProcessWithCleanupDeposit(uint256 processId, uint256 perSrpDeposit)
+        external
+        nonReentrant
+        returns (uint256[] memory releasedSrps)
+    {
         uint256[] storage srpIds = processSrps[processId];
         require(srpIds.length > 0, "no srps");
 
@@ -345,11 +304,7 @@ contract Figaro is ReentrancyGuard {
         require(perSrpDeposit >= minCleanupBounty, "deposit below minimum");
 
         // Validate and compute token, count and total deposit
-        (
-            address token,
-            uint256 n,
-            uint256 totalDeposit
-        ) = _validateAndComputeReleaseDeposit(processId, perSrpDeposit);
+        (address token, uint256 n, uint256 totalDeposit) = _validateAndComputeReleaseDeposit(processId, perSrpDeposit);
 
         // Perform release state transitions first (CEI): mark SRPs Released
         releasedSrps = new uint256[](n);
@@ -362,13 +317,7 @@ contract Figaro is ReentrancyGuard {
         }
 
         // Interactions & process bookkeeping
-        _settleReleaseInteractions(
-            processId,
-            token,
-            totalDeposit,
-            totalBuyerRefund,
-            perSrpDeposit
-        );
+        _settleReleaseInteractions(processId, token, totalDeposit, totalBuyerRefund, perSrpDeposit);
 
         return releasedSrps;
     }
@@ -377,10 +326,11 @@ contract Figaro is ReentrancyGuard {
     /// @dev Buyer (root buyer of each process) calls this to release all SRPs in each process.
     /// Aggregates buyer refunds and collection of cleanup deposits into a single interaction
     /// for gas efficiency while preserving per-process archival bookkeeping.
-    function batchRelease(
-        uint256[] calldata processIds,
-        uint256 perSrpDeposit
-    ) external nonReentrant returns (uint256 totalReleasedSrps) {
+    function batchRelease(uint256[] calldata processIds, uint256 perSrpDeposit)
+        external
+        nonReentrant
+        returns (uint256 totalReleasedSrps)
+    {
         require(processIds.length > 0, "empty batch");
         _requireBatchSize(processIds.length);
 
@@ -410,9 +360,7 @@ contract Figaro is ReentrancyGuard {
             // guard against overflow and enforce minimum per-srp deposit
             require(perSrpDeposit >= minCleanupBounty, "deposit below minimum");
             uint256 procDeposit = perSrpDeposit * n;
-            if (
-                n != 0 && perSrpDeposit != 0 && procDeposit / n != perSrpDeposit
-            ) {
+            if (n != 0 && perSrpDeposit != 0 && procDeposit / n != perSrpDeposit) {
                 revert("deposit overflow");
             }
             totalDeposit += procDeposit;
@@ -441,13 +389,7 @@ contract Figaro is ReentrancyGuard {
             processPerSrpDeposit[pid] = perSrpDeposit;
             processArchivableAt[pid] = block.timestamp + ARCHIVE_DELAY_SECONDS;
 
-            emit CleanupDepositPlaced(
-                pid,
-                token,
-                perSrpDeposit,
-                processCleanupTotalDeposit[pid],
-                msg.sender
-            );
+            emit CleanupDepositPlaced(pid, token, perSrpDeposit, processCleanupTotalDeposit[pid], msg.sender);
         }
 
         // Interactions: perform aggregated transfers once for efficiency
@@ -456,11 +398,7 @@ contract Figaro is ReentrancyGuard {
         }
 
         if (totalDeposit > 0) {
-            IERC20(token).safeTransferFrom(
-                msg.sender,
-                address(this),
-                totalDeposit
-            );
+            IERC20(token).safeTransferFrom(msg.sender, address(this), totalDeposit);
         }
 
         return totalReleasedSrps;
@@ -488,11 +426,7 @@ contract Figaro is ReentrancyGuard {
 
         // Emit SrpStateChanged for Refunded state (dual emission)
         bytes32 refundVersion = keccak256(
-            abi.encodePacked(
-                _srps[srpId].srpHash,
-                uint256(State.Refunded),
-                _srps[srpId].coordinationCapitalBalance
-            )
+            abi.encodePacked(_srps[srpId].srpHash, uint256(State.Refunded), _srps[srpId].coordinationCapitalBalance)
         );
         // principal = seller for Refund (seller-centric)
         emit SrpStateChanged(
@@ -516,9 +450,7 @@ contract Figaro is ReentrancyGuard {
     /// Performs a two-pass approach: validate and aggregate per-token totals,
     /// apply CEI state changes, then perform aggregated token transfers,
     /// and finally emit per-SRP `SrpStateChanged` events.
-    function batchRefund(
-        uint256[] calldata srpIds
-    ) external nonReentrant returns (uint256 totalRefunded) {
+    function batchRefund(uint256[] calldata srpIds) external nonReentrant returns (uint256 totalRefunded) {
         require(srpIds.length > 0, "empty batch");
         _requireBatchSize(srpIds.length);
 
@@ -576,11 +508,7 @@ contract Figaro is ReentrancyGuard {
         for (uint256 i = 0; i < srpIds.length; i++) {
             uint256 srpId = srpIds[i];
             bytes32 refundVersion = keccak256(
-                abi.encodePacked(
-                    _srps[srpId].srpHash,
-                    uint256(State.Refunded),
-                    _srps[srpId].coordinationCapitalBalance
-                )
+                abi.encodePacked(_srps[srpId].srpHash, uint256(State.Refunded), _srps[srpId].coordinationCapitalBalance)
             );
             emit SrpStateChanged(
                 srpId,
@@ -605,9 +533,7 @@ contract Figaro is ReentrancyGuard {
     /// @dev Sellers call this to cancel many SRPs in `Created` state. Uses a two-pass
     /// approach: validate and aggregate per-token totals, apply CEI state changes,
     /// perform aggregated token transfers, and emit per-SRP `SrpStateChanged` events.
-    function batchCancel(
-        uint256[] calldata srpIds
-    ) external nonReentrant returns (uint256 totalCancelled) {
+    function batchCancel(uint256[] calldata srpIds) external nonReentrant returns (uint256 totalCancelled) {
         require(srpIds.length > 0, "empty batch");
         _requireBatchSize(srpIds.length);
 
@@ -665,9 +591,7 @@ contract Figaro is ReentrancyGuard {
             uint256 srpId = srpIds[i];
             bytes32 cancelVersion = keccak256(
                 abi.encodePacked(
-                    _srps[srpId].srpHash,
-                    uint256(State.Cancelled),
-                    _srps[srpId].coordinationCapitalBalance
+                    _srps[srpId].srpHash, uint256(State.Cancelled), _srps[srpId].coordinationCapitalBalance
                 )
             );
             emit SrpStateChanged(
@@ -708,19 +632,12 @@ contract Figaro is ReentrancyGuard {
 
         // Interactions: return coordination capital to seller
         if (cancelledAmount > 0) {
-            IERC20(_srps[srpId].token).safeTransfer(
-                msg.sender,
-                cancelledAmount
-            );
+            IERC20(_srps[srpId].token).safeTransfer(msg.sender, cancelledAmount);
         }
 
         // Emit SrpStateChanged for Cancelled state (dual emission)
         bytes32 cancelVersion = keccak256(
-            abi.encodePacked(
-                _srps[srpId].srpHash,
-                uint256(State.Cancelled),
-                _srps[srpId].coordinationCapitalBalance
-            )
+            abi.encodePacked(_srps[srpId].srpHash, uint256(State.Cancelled), _srps[srpId].coordinationCapitalBalance)
         );
         // principal = seller for Cancel (seller-centric)
         emit SrpStateChanged(
@@ -750,11 +667,11 @@ contract Figaro is ReentrancyGuard {
     ///
     /// On success this function creates a new SRP, collects the third party seller's
     /// coordination capital and protocol fee, and emits `SrpAdded`.
-    function addSrpToProcess(
-        uint256 processId,
-        address thirdPartySeller,
-        uint256 amount
-    ) external nonReentrant returns (uint256 srpId) {
+    function addSrpToProcess(uint256 processId, address thirdPartySeller, uint256 amount)
+        external
+        nonReentrant
+        returns (uint256 srpId)
+    {
         // basic validations
         require(amount > 0, "amount>0");
         require(thirdPartySeller != address(0), "thirdPartySeller required");
@@ -778,43 +695,24 @@ contract Figaro is ReentrancyGuard {
         uint256 coordinationCapital = _computeCoordinationCapital(totalValue);
 
         // Effects: create SRP and register to process
-        srpId = _createAndRegisterSrp(
-            processId,
-            thirdPartySeller,
-            rootBuyer,
-            amount,
-            token,
-            totalValue
-        );
+        srpId = _createAndRegisterSrp(processId, thirdPartySeller, rootBuyer, amount, token, totalValue);
 
         // Interactions: collect third party seller coordination capital + fee and record
-        _collectAndSetCoordination(
-            srpId,
-            token,
-            thirdPartySeller,
-            coordinationCapital
-        );
+        _collectAndSetCoordination(srpId, token, thirdPartySeller, coordinationCapital);
 
         // compute and emit linked hash and state-change for child SRP
         _finalizeSrpCreation(
-            srpId,
-            processId,
-            lastSrpId,
-            thirdPartySeller,
-            rootBuyer,
-            token,
-            totalValue,
-            coordinationCapital
+            srpId, processId, lastSrpId, thirdPartySeller, rootBuyer, token, totalValue, coordinationCapital
         );
     }
 
     /// @notice Seller-side batch SRP addition: create SRPs and collect coordination capital
     /// @dev Root seller calls to add multiple SRPs in one atomic transaction.
-    function sellerBatchAdd(
-        uint256 processId,
-        address[] calldata sellers,
-        uint256[] calldata amounts
-    ) external nonReentrant returns (uint256[] memory srpIds) {
+    function sellerBatchAdd(uint256 processId, address[] calldata sellers, uint256[] calldata amounts)
+        external
+        nonReentrant
+        returns (uint256[] memory srpIds)
+    {
         uint256 n = sellers.length;
         require(n > 0, "empty batch");
         _requireBatchSize(n);
@@ -842,39 +740,16 @@ contract Figaro is ReentrancyGuard {
             _requireThirdPartyConsent(seller, rootSeller, rootBuyer);
 
             uint256 totalValue = previousTotal + amount;
-            uint256 coordinationCapital = _computeCoordinationCapital(
-                totalValue
-            );
+            uint256 coordinationCapital = _computeCoordinationCapital(totalValue);
 
             // Effects: create SRP and register to process
-            uint256 srpId = _createAndRegisterSrp(
-                processId,
-                seller,
-                rootBuyer,
-                amount,
-                token,
-                totalValue
-            );
+            uint256 srpId = _createAndRegisterSrp(processId, seller, rootBuyer, amount, token, totalValue);
 
             // Interactions: collect seller coordination capital + fee and record
-            _collectAndSetCoordination(
-                srpId,
-                token,
-                seller,
-                coordinationCapital
-            );
+            _collectAndSetCoordination(srpId, token, seller, coordinationCapital);
 
             // compute and emit linked hash and state-change for this new SRP; link to previous
-            _finalizeSrpCreation(
-                srpId,
-                processId,
-                lastSrpId,
-                seller,
-                rootBuyer,
-                token,
-                totalValue,
-                coordinationCapital
-            );
+            _finalizeSrpCreation(srpId, processId, lastSrpId, seller, rootBuyer, token, totalValue, coordinationCapital);
 
             srpIds[i] = srpId;
             previousTotal = totalValue;
@@ -884,11 +759,7 @@ contract Figaro is ReentrancyGuard {
     /// @notice Create multiple processes each with a root SRP in a single transaction
     /// @dev Seller (`msg.sender`) creates multiple processes and pays coordination capital + fee per SRP.
     /// Uses CEI ordering: create storage entries first, then collect funds per-SRP.
-    function batchCreateProcesses(
-        address[] calldata buyers,
-        uint256[] calldata amounts,
-        address[] calldata tokens
-    )
+    function batchCreateProcesses(address[] calldata buyers, uint256[] calldata amounts, address[] calldata tokens)
         external
         nonReentrant
         returns (uint256[] memory processIds, uint256[] memory srpIds)
@@ -918,40 +789,19 @@ contract Figaro is ReentrancyGuard {
             processIds[i] = processId;
 
             // create root SRP with zero coordination balance
-            uint256 srpId = _createAndRegisterSrp(
-                processId,
-                msg.sender,
-                buyers[i],
-                amounts[i],
-                tokens[i],
-                amounts[i]
-            );
+            uint256 srpId = _createAndRegisterSrp(processId, msg.sender, buyers[i], amounts[i], tokens[i], amounts[i]);
             srpIds[i] = srpId;
 
             // Emit creation events for this root SRP (coordinationCapital not yet collected)
             uint256 coordinationCapital = 2 * amounts[i];
-            _finalizeSrpCreation(
-                srpId,
-                processId,
-                0,
-                msg.sender,
-                buyers[i],
-                tokens[i],
-                amounts[i],
-                coordinationCapital
-            );
+            _finalizeSrpCreation(srpId, processId, 0, msg.sender, buyers[i], tokens[i], amounts[i], coordinationCapital);
         }
 
         // Interactions: collect coordination capital + fee for each SRP from the seller
         for (uint256 i = 0; i < n; i++) {
             uint256 srpId = srpIds[i];
             uint256 coordinationCapital = 2 * _srps[srpId].amount;
-            _collectAndSetCoordination(
-                srpId,
-                _srps[srpId].token,
-                msg.sender,
-                coordinationCapital
-            );
+            _collectAndSetCoordination(srpId, _srps[srpId].token, msg.sender, coordinationCapital);
         }
 
         return (processIds, srpIds);
@@ -982,17 +832,11 @@ contract Figaro is ReentrancyGuard {
     }
 
     // Internal helper: collect coordination capital + fee and update stored balance
-    function _collectAndSetCoordination(
-        uint256 srpId,
-        address token,
-        address payer,
-        uint256 coordinationCapital
-    ) internal returns (uint256) {
-        uint256 feeAmount = _collectFeeAndCapital(
-            token,
-            payer,
-            coordinationCapital
-        );
+    function _collectAndSetCoordination(uint256 srpId, address token, address payer, uint256 coordinationCapital)
+        internal
+        returns (uint256)
+    {
+        uint256 feeAmount = _collectFeeAndCapital(token, payer, coordinationCapital);
         _srps[srpId].coordinationCapitalBalance = coordinationCapital;
         return feeAmount;
     }
@@ -1009,36 +853,13 @@ contract Figaro is ReentrancyGuard {
         uint256 coordinationCapital
     ) internal {
         bytes32 prevHash = _srps[prevLastSrpId].srpHash;
-        bytes32 creationHash = keccak256(
-            abi.encodePacked(
-                prevHash,
-                seller,
-                buyer,
-                _srps[srpId].amount,
-                token,
-                totalValue
-            )
-        );
+        bytes32 creationHash =
+            keccak256(abi.encodePacked(prevHash, seller, buyer, _srps[srpId].amount, token, totalValue));
         _srps[srpId].srpHash = creationHash;
-        emit SrpCreated(
-            srpId,
-            processId,
-            creationHash,
-            prevLastSrpId,
-            prevHash,
-            seller,
-            buyer,
-            token,
-            totalValue
-        );
+        emit SrpCreated(srpId, processId, creationHash, prevLastSrpId, prevHash, seller, buyer, token, totalValue);
 
-        bytes32 creationVersion = keccak256(
-            abi.encodePacked(
-                creationHash,
-                uint256(State.Created),
-                _srps[srpId].coordinationCapitalBalance
-            )
-        );
+        bytes32 creationVersion =
+            keccak256(abi.encodePacked(creationHash, uint256(State.Created), _srps[srpId].coordinationCapitalBalance));
         emit SrpStateChanged(
             srpId,
             processId,
@@ -1070,23 +891,19 @@ contract Figaro is ReentrancyGuard {
     ///   exercise a token-callback reentrancy attempt and observe the
     ///   `ReentrancyGuardReentrantCall()` revert.
     // slither-disable-next-line reentrancy-no-eth
-    function addSrpSigned(
-        IMechanism.AddSrpPayload calldata p,
-        bytes calldata sellerSig,
-        bytes calldata erc2612Permit
-    ) external nonReentrant returns (uint256 srpId) {
+    function addSrpSigned(IMechanism.AddSrpPayload calldata p, bytes calldata sellerSig, bytes calldata erc2612Permit)
+        external
+        nonReentrant
+        returns (uint256 srpId)
+    {
         require(p.amount > 0, "amount>0");
         require(block.timestamp <= p.deadline, "expired");
 
         // Ensure adding this signed SRP won't overflow the per-process capacity
         _requireProcessCapacity(p.processId, 1);
 
-        (
-            address token,
-            address rootBuyer,
-            ,
-            uint256 computedTotal
-        ) = _computeAndValidateContext(p.processId, p.seller, p.amount);
+        (address token, address rootBuyer,, uint256 computedTotal) =
+            _computeAndValidateContext(p.processId, p.seller, p.amount);
 
         // verify signature and consume nonce (delegated to helper)
         bool ok = verifyAddSrpPayload(p, address(this), sellerSig);
@@ -1098,28 +915,12 @@ contract Figaro is ReentrancyGuard {
         uint256 feeAmount = srpFees.calculateFee(coordinationCapital);
         uint256 total = coordinationCapital + feeAmount;
         // Effects (CEI first): register SRP with zero balance
-        uint256 prevLastSrpId = processSrps[p.processId][
-            processSrps[p.processId].length - 1
-        ];
-        srpId = _createAndRegisterSrp(
-            p.processId,
-            p.seller,
-            rootBuyer,
-            p.amount,
-            token,
-            computedTotal
-        );
+        uint256 prevLastSrpId = processSrps[p.processId][processSrps[p.processId].length - 1];
+        srpId = _createAndRegisterSrp(p.processId, p.seller, rootBuyer, p.amount, token, computedTotal);
 
         // Finalize creation and emit events (reuses existing helper)
         _finalizeSrpCreation(
-            srpId,
-            p.processId,
-            prevLastSrpId,
-            p.seller,
-            rootBuyer,
-            token,
-            computedTotal,
-            coordinationCapital
+            srpId, p.processId, prevLastSrpId, p.seller, rootBuyer, token, computedTotal, coordinationCapital
         );
         // Interactions: call permit if provided, then collect fee and coordination capital
         // (effects were already applied above to minimize reentrancy window)
@@ -1180,12 +981,8 @@ contract Figaro is ReentrancyGuard {
         for (uint256 i = 0; i < n; i++) {
             IMechanism.AddSrpPayload calldata p = payloads[i];
 
-            (
-                address token,
-                address rootBuyer,
-                ,
-                uint256 computedTotal
-            ) = _computeAndValidateContext(p.processId, p.seller, p.amount);
+            (address token, address rootBuyer,, uint256 computedTotal) =
+                _computeAndValidateContext(p.processId, p.seller, p.amount);
 
             // verify signature and consume nonce
             bool ok = verifyAddSrpPayload(p, address(this), sellerSigs[i]);
@@ -1194,43 +991,17 @@ contract Figaro is ReentrancyGuard {
 
             uint256 coordinationCapital = 2 * computedTotal;
 
-            uint256 prevLastSrpId = processSrps[p.processId][
-                processSrps[p.processId].length - 1
-            ];
+            uint256 prevLastSrpId = processSrps[p.processId][processSrps[p.processId].length - 1];
 
-            uint256 srpId = _createAndRegisterSrp(
-                p.processId,
-                p.seller,
-                rootBuyer,
-                p.amount,
-                token,
-                computedTotal
-            );
+            uint256 srpId = _createAndRegisterSrp(p.processId, p.seller, rootBuyer, p.amount, token, computedTotal);
 
             _finalizeSrpCreation(
-                srpId,
-                p.processId,
-                prevLastSrpId,
-                p.seller,
-                rootBuyer,
-                token,
-                computedTotal,
-                coordinationCapital
+                srpId, p.processId, prevLastSrpId, p.seller, rootBuyer, token, computedTotal, coordinationCapital
             );
 
             // permit if present, then collect coordination capital + fee
-            callPermitIfPresent(
-                token,
-                p.seller,
-                address(this),
-                erc2612Permits[i]
-            );
-            _collectAndSetCoordination(
-                srpId,
-                token,
-                p.seller,
-                coordinationCapital
-            );
+            callPermitIfPresent(token, p.seller, address(this), erc2612Permits[i]);
+            _collectAndSetCoordination(srpId, token, p.seller, coordinationCapital);
 
             srpIds[i] = srpId;
         }
@@ -1244,11 +1015,8 @@ contract Figaro is ReentrancyGuard {
     /// Accepts an array of `processIds` and will lock all qualifying SRPs in those processes.
     function batchLock(uint256[] calldata processIds) external nonReentrant {
         // Collect SRPs to lock and compute total coordination capital; validates inputs
-        (
-            uint256[] memory srpIdsToLock,
-            uint256 totalCoordinationCapital,
-            address token
-        ) = _collectSrpsToLock(processIds);
+        (uint256[] memory srpIdsToLock, uint256 totalCoordinationCapital, address token) =
+            _collectSrpsToLock(processIds);
 
         // Effects: lock all selected SRPs (CEI)
         for (uint256 i = 0; i < srpIdsToLock.length; i++) {
@@ -1266,16 +1034,10 @@ contract Figaro is ReentrancyGuard {
     }
 
     // Internal helper: gather SRP ids eligible for batchLock and compute totals
-    function _collectSrpsToLock(
-        uint256[] calldata processIds
-    )
+    function _collectSrpsToLock(uint256[] calldata processIds)
         internal
         view
-        returns (
-            uint256[] memory srpIdsToLock,
-            uint256 totalCoordinationCapital,
-            address token
-        )
+        returns (uint256[] memory srpIdsToLock, uint256 totalCoordinationCapital, address token)
     {
         require(processIds.length > 0, "empty batch");
         _requireBatchSize(processIds.length);
@@ -1331,9 +1093,7 @@ contract Figaro is ReentrancyGuard {
     }
 
     // Internal helper: record deposited capital for each locked SRP
-    function _recordBuyerDepositsForLockedSrps(
-        uint256[] memory srpIdsToLock
-    ) internal {
+    function _recordBuyerDepositsForLockedSrps(uint256[] memory srpIdsToLock) internal {
         for (uint256 i = 0; i < srpIdsToLock.length; i++) {
             uint256 srpId = srpIdsToLock[i];
             _srps[srpId].coordinationCapitalBalance += 2 * _srps[srpId].amount;
@@ -1347,11 +1107,7 @@ contract Figaro is ReentrancyGuard {
             uint256 buyerDeposit = 2 * _srps[srpId].amount;
 
             bytes32 lockVersion = keccak256(
-                abi.encodePacked(
-                    _srps[srpId].srpHash,
-                    uint256(State.Locked),
-                    _srps[srpId].coordinationCapitalBalance
-                )
+                abi.encodePacked(_srps[srpId].srpHash, uint256(State.Locked), _srps[srpId].coordinationCapitalBalance)
             );
 
             emit SrpStateChanged(
@@ -1374,9 +1130,7 @@ contract Figaro is ReentrancyGuard {
     /// @notice Lock root SRPs for multiple processes in a single transaction
     /// @dev Buyer of each root SRP calls this with `processIds`. Allows mixed tokens
     /// by aggregating per-token totals then performing per-token pulls.
-    function batchLockRoots(
-        uint256[] calldata processIds
-    ) external nonReentrant returns (uint256 totalLocked) {
+    function batchLockRoots(uint256[] calldata processIds) external nonReentrant returns (uint256 totalLocked) {
         require(processIds.length > 0, "empty batch");
         _requireBatchSize(processIds.length);
 
@@ -1448,11 +1202,7 @@ contract Figaro is ReentrancyGuard {
             if (srpId == 0) continue;
 
             bytes32 lockVersion = keccak256(
-                abi.encodePacked(
-                    _srps[srpId].srpHash,
-                    uint256(State.Locked),
-                    _srps[srpId].coordinationCapitalBalance
-                )
+                abi.encodePacked(_srps[srpId].srpHash, uint256(State.Locked), _srps[srpId].coordinationCapitalBalance)
             );
 
             uint256 buyerDeposit = 2 * _srps[srpId].amount;
@@ -1477,9 +1227,7 @@ contract Figaro is ReentrancyGuard {
 
     /// @notice Archive completed process SRPs that have buyer-funded deposits and pay caller
     /// @dev Permissionless: requires each SRP.archivableAt != 0 and <= block.timestamp
-    function archiveProcessSrpsWithDeposit(
-        uint256 processId
-    ) external nonReentrant returns (uint256 archivedCount) {
+    function archiveProcessSrpsWithDeposit(uint256 processId) external nonReentrant returns (uint256 archivedCount) {
         uint256[] storage srpIds = processSrps[processId];
         require(srpIds.length > 0, "no srps");
         _requireBatchSize(srpIds.length);
@@ -1490,10 +1238,7 @@ contract Figaro is ReentrancyGuard {
         for (uint256 i = 0; i < srpIds.length; i++) {
             uint256 srpId = srpIds[i];
             State s = _srps[srpId].state;
-            require(
-                s == State.Refunded || s == State.Cancelled,
-                "all srps must be terminal"
-            );
+            require(s == State.Refunded || s == State.Cancelled, "all srps must be terminal");
             require(_srps[srpId].token == token, "tokens must match");
         }
 
@@ -1534,9 +1279,11 @@ contract Figaro is ReentrancyGuard {
     /// Requires all processes to be archivable (archivable timestamp elapsed)
     /// and all SRPs terminal. Tokens must match across processes to allow
     /// aggregated payout in a single transfer.
-    function batchArchiveProcesses(
-        uint256[] calldata processIds
-    ) external nonReentrant returns (uint256 totalArchived) {
+    function batchArchiveProcesses(uint256[] calldata processIds)
+        external
+        nonReentrant
+        returns (uint256 totalArchived)
+    {
         require(processIds.length > 0, "empty batch");
         _requireBatchSize(processIds.length);
 
@@ -1562,19 +1309,13 @@ contract Figaro is ReentrancyGuard {
             for (uint256 j = 0; j < srpIds.length; j++) {
                 uint256 srpId = srpIds[j];
                 State s = _srps[srpId].state;
-                require(
-                    s == State.Refunded || s == State.Cancelled,
-                    "all srps must be terminal"
-                );
+                require(s == State.Refunded || s == State.Cancelled, "all srps must be terminal");
                 require(_srps[srpId].token == token, "tokens must match");
             }
 
             // archivable timestamp must exist and have elapsed
             uint256 at = processArchivableAt[pid];
-            require(
-                at != 0 && block.timestamp >= at,
-                "terminal timestamp missing"
-            );
+            require(at != 0 && block.timestamp >= at, "terminal timestamp missing");
 
             uint256 payout = processCleanupTotalDeposit[pid];
             require(payout > 0, "no cleanup deposit");
@@ -1649,9 +1390,7 @@ contract Figaro is ReentrancyGuard {
     }
 
     // Internal helper: validate caller is root seller and root SRP is locked, return context
-    function _requireRootSellerAndLocked(
-        uint256 processId
-    )
+    function _requireRootSellerAndLocked(uint256 processId)
         internal
         view
         returns (
@@ -1679,23 +1418,14 @@ contract Figaro is ReentrancyGuard {
     }
 
     // Internal helper: validate third-party seller identity and consent
-    function _requireThirdPartyConsent(
-        address seller,
-        address rootSeller,
-        address rootBuyer
-    ) internal view {
+    function _requireThirdPartyConsent(address seller, address rootSeller, address rootBuyer) internal view {
         require(seller != rootBuyer, "seller==buyer");
         require(seller != rootSeller, "seller==rootSeller");
-        require(
-            rootSellerThirdPartyConsent[seller][rootSeller],
-            "root seller not approved by third party seller"
-        );
+        require(rootSellerThirdPartyConsent[seller][rootSeller], "root seller not approved by third party seller");
     }
 
     // Internal helper: compute coordination capital for a total value and validate
-    function _computeCoordinationCapital(
-        uint256 totalValue
-    ) internal pure returns (uint256) {
+    function _computeCoordinationCapital(uint256 totalValue) internal pure returns (uint256) {
         uint256 coordinationCapital = 2 * totalValue;
         require(2 * totalValue == coordinationCapital, "coord math");
         return coordinationCapital;
@@ -1710,11 +1440,10 @@ contract Figaro is ReentrancyGuard {
     /// protocol rejects fee-on-transfer or otherwise nonstandard ERC-20 tokens
     /// to avoid silent fund loss and keep accounting simple. Callers should
     /// ensure the token is standard-compliant (see `createProcess` probe).
-    function _collectFeeAndCapital(
-        address token,
-        address payer,
-        uint256 coordinationCapital
-    ) internal returns (uint256) {
+    function _collectFeeAndCapital(address token, address payer, uint256 coordinationCapital)
+        internal
+        returns (uint256)
+    {
         uint256 feeAmount = srpFees.calculateFee(coordinationCapital);
         uint256 total = coordinationCapital + feeAmount;
         uint256 allowance = IERC20(token).allowance(payer, address(this));
@@ -1738,19 +1467,12 @@ contract Figaro is ReentrancyGuard {
 
         // transfer coordination capital to contract and verify exact received amount
         if (coordinationCapital > 0) {
-            tokenIfc.safeTransferFrom(
-                payer,
-                address(this),
-                coordinationCapital
-            );
+            tokenIfc.safeTransferFrom(payer, address(this), coordinationCapital);
             uint256 postThis = tokenIfc.balanceOf(address(this));
             uint256 actualCoord = postThis - preThis;
             // deliberate equality check: enforce exact coordination capital received.
             // slither-disable-next-line incorrect-equality
-            require(
-                actualCoord == coordinationCapital,
-                "capital transfer mismatch"
-            );
+            require(actualCoord == coordinationCapital, "capital transfer mismatch");
         }
 
         return feeAmount;
@@ -1770,10 +1492,7 @@ contract Figaro is ReentrancyGuard {
     /// seller's tokens.
     /// @param rootSeller The rootSeller address to approve or revoke
     /// @param approved True to approve, false to revoke
-    function grantRootSellerConsent(
-        address rootSeller,
-        bool approved
-    ) external {
+    function grantRootSellerConsent(address rootSeller, bool approved) external {
         rootSellerThirdPartyConsent[msg.sender][rootSeller] = approved;
         emit AddSrpConsent(msg.sender, rootSeller, approved);
     }
@@ -1781,10 +1500,7 @@ contract Figaro is ReentrancyGuard {
     /// @notice Batch grant or revoke consent for multiple root sellers
     /// @dev Third-party sellers call this to approve or revoke many root sellers
     /// in a single transaction. Mirrors `grantRootSellerConsent` behavior.
-    function batchGrantRootSellerConsent(
-        address[] calldata rootSellers,
-        bool approved
-    ) external {
+    function batchGrantRootSellerConsent(address[] calldata rootSellers, bool approved) external {
         require(rootSellers.length > 0, "empty batch");
         _requireBatchSize(rootSellers.length);
 
@@ -1806,19 +1522,10 @@ contract Figaro is ReentrancyGuard {
     }
 
     // Internal: compute and validate process context for an AddSrpPayload
-    function _computeAndValidateContext(
-        uint256 processId,
-        address seller,
-        uint256 amount
-    )
+    function _computeAndValidateContext(uint256 processId, address seller, uint256 amount)
         internal
         view
-        returns (
-            address token,
-            address rootBuyer,
-            address rootSeller,
-            uint256 computedTotal
-        )
+        returns (address token, address rootBuyer, address rootSeller, uint256 computedTotal)
     {
         uint256[] storage srpChain = processSrps[processId];
         require(srpChain.length > 0, "process missing");
@@ -1839,9 +1546,7 @@ contract Figaro is ReentrancyGuard {
     }
 
     // Compatibility getter: preserve previous public getter shape (6-tuple)
-    function srps(
-        uint256 srpId
-    )
+    function srps(uint256 srpId)
         public
         view
         returns (
@@ -1854,43 +1559,32 @@ contract Figaro is ReentrancyGuard {
         )
     {
         SrpData storage s = _srps[srpId];
-        return (
-            s.seller,
-            s.buyer,
-            s.amount,
-            s.token,
-            s.state,
-            s.coordinationCapitalBalance
-        );
+        return (s.seller, s.buyer, s.amount, s.token, s.state, s.coordinationCapitalBalance);
     }
 
     // =============================================================
     //                           SIGNED HELPERS
     // =============================================================
 
-    bytes32 internal constant ADD_SRP_TYPEHASH =
-        keccak256(
-            "AddSrpPayload(uint256 processId,address seller,uint256 amount,address token,uint256 totalProcessValue,uint256 deadline,uint256 nonce,bytes metadata)"
-        );
+    bytes32 internal constant ADD_SRP_TYPEHASH = keccak256(
+        "AddSrpPayload(uint256 processId,address seller,uint256 amount,address token,uint256 totalProcessValue,uint256 deadline,uint256 nonce,bytes metadata)"
+    );
 
-    function hashAddSrpPayload(
-        IMechanism.AddSrpPayload calldata p
-    ) internal pure returns (bytes32) {
+    function hashAddSrpPayload(IMechanism.AddSrpPayload calldata p) internal pure returns (bytes32) {
         bytes32 metaHash = keccak256(p.metadata);
-        return
-            keccak256(
-                abi.encode(
-                    ADD_SRP_TYPEHASH,
-                    p.processId,
-                    p.seller,
-                    p.amount,
-                    p.token,
-                    p.totalProcessValue,
-                    p.deadline,
-                    p.nonce,
-                    metaHash
-                )
-            );
+        return keccak256(
+            abi.encode(
+                ADD_SRP_TYPEHASH,
+                p.processId,
+                p.seller,
+                p.amount,
+                p.token,
+                p.totalProcessValue,
+                p.deadline,
+                p.nonce,
+                metaHash
+            )
+        );
     }
 
     function verifySignatureMatches(
@@ -1899,9 +1593,7 @@ contract Figaro is ReentrancyGuard {
         bytes32 structHash,
         bytes memory signature
     ) internal view returns (bool) {
-        bytes32 digest = keccak256(
-            abi.encodePacked("\x19\x01", domainSeparator, structHash)
-        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
 
         // Try ECDSA recover first
         address recovered = ECDSA.recover(digest, signature);
@@ -1914,9 +1606,7 @@ contract Figaro is ReentrancyGuard {
         }
         if (size == 0) return false;
 
-        (bool ok, bytes memory ret) = expected.staticcall(
-            abi.encodeWithSelector(0x1626ba7e, digest, signature)
-        );
+        (bool ok, bytes memory ret) = expected.staticcall(abi.encodeWithSelector(0x1626ba7e, digest, signature));
         if (!ok || ret.length < 4) return false;
         // Defensive decode: load the first word of the return data which
         // should contain the 4-byte selector (padded). We use assembly to
@@ -1928,12 +1618,7 @@ contract Figaro is ReentrancyGuard {
         return result == 0x1626ba7e;
     }
 
-    function callPermitIfPresent(
-        address token,
-        address owner,
-        address spender,
-        bytes memory permit
-    ) internal {
+    function callPermitIfPresent(address token, address owner, address spender, bytes memory permit) internal {
         if (permit.length == 0) return;
         // Use OpenZeppelin `Address.functionCall` to surface revert reasons
         // when permit execution fails. Permits are optional; failure here
@@ -1951,9 +1636,7 @@ contract Figaro is ReentrancyGuard {
 
         bytes32 domain = keccak256(
             abi.encode(
-                keccak256(
-                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-                ),
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
                 keccak256(bytes("Figaro")),
                 keccak256(bytes("1")),
                 block.chainid,
@@ -1965,10 +1648,11 @@ contract Figaro is ReentrancyGuard {
     }
 
     // Internal helper: validate tokens for a process and compute total deposit
-    function _validateAndComputeReleaseDeposit(
-        uint256 processId,
-        uint256 perSrpDeposit
-    ) internal view returns (address token, uint256 n, uint256 totalDeposit) {
+    function _validateAndComputeReleaseDeposit(uint256 processId, uint256 perSrpDeposit)
+        internal
+        view
+        returns (address token, uint256 n, uint256 totalDeposit)
+    {
         uint256[] storage srpIds = processSrps[processId];
         require(srpIds.length > 0, "no srps");
         token = _srps[srpIds[0]].token;
@@ -1986,10 +1670,7 @@ contract Figaro is ReentrancyGuard {
     // Internal helper: ensure adding `newChildren` SRPs does not exceed
     // the protocol's MAX_BATCH_SIZE when applied to the target process.
     // Uses the same revert string as other batch checks for consistency.
-    function _requireProcessCapacity(
-        uint256 processId,
-        uint256 newChildren
-    ) internal view {
+    function _requireProcessCapacity(uint256 processId, uint256 newChildren) internal view {
         uint256 currentTotal = processSrps[processId].length; // includes root SRP
         uint256 totalAfter = currentTotal + newChildren;
         require(totalAfter <= MAX_BATCH_SIZE, "batch too large");
@@ -2001,10 +1682,7 @@ contract Figaro is ReentrancyGuard {
     }
 
     // Internal helper: apply CEI effects for a single SRP release and emit event
-    function _applyReleaseToSrp(
-        uint256 processId,
-        uint256 srpId
-    ) internal returns (uint256 buyerRefund) {
+    function _applyReleaseToSrp(uint256 processId, uint256 srpId) internal returns (uint256 buyerRefund) {
         require(_srps[srpId].state == State.Locked, "srp not locked");
         // accumulate buyer refund (1x amount per SRP)
         buyerRefund = _srps[srpId].amount;
@@ -2014,11 +1692,7 @@ contract Figaro is ReentrancyGuard {
 
         // Emit SrpStateChanged per SRP for Released state
         bytes32 releaseVersion = keccak256(
-            abi.encodePacked(
-                _srps[srpId].srpHash,
-                uint256(State.Released),
-                _srps[srpId].coordinationCapitalBalance
-            )
+            abi.encodePacked(_srps[srpId].srpHash, uint256(State.Released), _srps[srpId].coordinationCapitalBalance)
         );
         // principal = buyer for Release (buyer-centric)
         emit SrpStateChanged(
@@ -2058,20 +1732,10 @@ contract Figaro is ReentrancyGuard {
 
         // Interactions: collect buyer-funded cleanup deposit
         if (totalDeposit > 0) {
-            IERC20(token).safeTransferFrom(
-                msg.sender,
-                address(this),
-                totalDeposit
-            );
+            IERC20(token).safeTransferFrom(msg.sender, address(this), totalDeposit);
         }
 
-        emit CleanupDepositPlaced(
-            processId,
-            token,
-            perSrpDeposit,
-            totalDeposit,
-            msg.sender
-        );
+        emit CleanupDepositPlaced(processId, token, perSrpDeposit, totalDeposit, msg.sender);
     }
 
     // =============================================================
