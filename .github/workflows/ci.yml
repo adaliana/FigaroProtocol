@@ -32,8 +32,8 @@ jobs:
           rm -rf lib/forge-std lib/openzeppelin-contracts || true
           forge install foundry-rs/forge-std@v1.9.6 OpenZeppelin/openzeppelin-contracts@v5.0.2
 
-      - name: Format
-        run: forge fmt
+      - name: Format (check)
+        run: forge fmt --check
 
       - name: Build
         run: forge build
