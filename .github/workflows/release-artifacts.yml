@@ -1,0 +1,48 @@
+name: Release Artifacts
+
+on:
+    release:
+        types: [published]
+
+permissions:
+    contents: write
+
+concurrency:
+    group: release-artifacts-${{ github.event.release.tag_name }}
+    cancel-in-progress: true
+
+jobs:
+    build-and-upload-abis:
+        if: ${{ github.event.release.prerelease == false }}
+        runs-on: ubuntu-22.04
+        timeout-minutes: 15
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4.3.1
+
+            - name: Install Foundry
+              uses: foundry-rs/foundry-toolchain@v1.4.0
+              with:
+                  version: v1.4.3
+
+            - name: Install dependencies
+              run: |
+                  rm -rf lib/forge-std lib/openzeppelin-contracts || true
+                  forge install foundry-rs/forge-std@v1.9.6 OpenZeppelin/openzeppelin-contracts@v5.0.2
+
+            - name: Build
+              run: forge build
+
+            - name: Export ABIs
+              run: |
+                  mkdir -p artifacts/abi
+                  forge inspect src/Figaro.sol:Figaro abi > artifacts/abi/Figaro.json
+                  forge inspect src/SRPFees.sol:SRPFees abi > artifacts/abi/SRPFees.json
+
+            - name: Upload release assets
+              uses: softprops/action-gh-release@v2.5.0
+              with:
+                  files: |
+                      artifacts/abi/*.json
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
