@@ -12,10 +12,11 @@ permissions:
 
 jobs:
     update_release_draft:
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         runs-on: ubuntu-latest
         steps:
             - uses: release-drafter/release-drafter@v6
-              with:
-                  config-name: release-drafter.yml
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                with:
+                    config-name: release-drafter.yml
+                env:
+                    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
