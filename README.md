@@ -1,5 +1,7 @@
 # Figaro Protocol
 
+[![CI](https://github.com/adaliana/FigaroProtocol/actions/workflows/ci.yml/badge.svg)](https://github.com/adaliana/FigaroProtocol/actions/workflows/ci.yml)
+
 The Figaro Protocol provides cryptoeconomic coordination primitives for peer-to-peer marketplaces.
 
 This repository contains protocol source code and tests only.
