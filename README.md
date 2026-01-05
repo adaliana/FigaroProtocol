@@ -1,3 +1,57 @@
+## Why Figaro
+
+- Strong incentives: Progressive collateralization extends Vitalik’s Safe Remote Purchase (SRP) from two-party escrow to N-party coordination while preserving the same game-theoretic security guarantees.
+- Composable by design: Clean hook via `IMechanism` enables auctions, voting, reputation, oracles, and custom selection logic to run alongside SRP flows.
+- Token-agnostic: Works with any ERC-20, including fee-on-transfer tokens. The protocol proactively probes and accounts for transfer taxes to avoid hidden loss.
+- Event-first integrations: Deterministic versioning (`versionHash`) allows clients to de-duplicate and stream state safely.
+- Verified behaviors: CEI-first ordering, reentrancy defenses, Foundry invariants, and TLA+ models cover core safety properties.
+
+## Progressive Collateralization (SRP → Multi-party)
+
+Figaro is inspired by Vitalik’s Safe Remote Purchase escrow but generalizes it to multi-party coordination without weakening incentives. Participants post collateral progressively across stages of a Shared Remote Process (SRP). The staged collateral curve deters strategic deviations at every step, keeping cooperation the rational equilibrium as group size grows. Practically, this lets you scale from bilateral escrow to collective actions (e.g., group buys, milestone funding, cooperative deliveries) while maintaining SRP’s intuitive safety.
+
+Key properties:
+- Incentive compatibility: At each stage, defections are strictly dominated by cooperation given posted collateral and unlock rules.
+- Bounded griefing: Misbehavior is penalized by locked funds; honest parties are protected by escrowed coordination capital.
+- Extensible rules: You can tailor stage transitions and selection logic via `IMechanism` without altering the SRP’s safety core.
+
+See also: docs/design-decisions.md and docs/architecture.md for deeper mechanics, and formal-verification artifacts in the repository for model-level checks.
+
+## Key Guarantees
+
+- CEI-first sequencing: State transitions occur before external token transfers (`createProcess`, `lock`, `refund`, `release`), preventing classic reentrancy hazards.
+- Cryptographic integrity: All transitions are finalized on-chain under Ethereum consensus; user intent is authenticated by EOA signatures; event versioning uses `keccak256` over state to produce a stable `versionHash` for clients.
+- Formal assurance (pragmatic): TLA+ specifications exercise the SRP state machine and invariants; Foundry invariant tests and reentrancy suites enforce runtime properties in simulation. These checks improve confidence but do not replace rigorous audits.
+- Fee transparency: Fees are pulled via `SRPFees.collectFee(token, amount)` after callers `approve()`; the 1-unit probe in `createProcess` detects fee-on-transfer tokens so tax slippage is handled explicitly.
+
+## Composability
+
+- Mechanism hook: `IMechanism` is invoked after SRP add-flows so you can plug in auctions, votes, reputation, or scoring. This keeps SRP simple while enabling rich, application-specific coordination.
+- Event surface: Consumers subscribe to `SrpCreated`/`SrpStateChanged`, deduplicate by `(srpId, versionHash)`, and mirror fee math client-side for UX clarity.
+- Frontend patterns: The example clients in `frontend/` demonstrate minimal HTML/JS patterns using `abi.js` and `approvals.js`.
+
+## ERC-20 Token Agnosticism
+
+Figaro supports any ERC-20 that adheres to the standard transfer semantics, and it includes a probe path to detect fee-on-transfer behavior. Integrators should:
+- Use standard `approve()` prior to `collectFee()`.
+- Mirror fee math on the client to present exact required approvals.
+- Expect the 1-unit probe in `createProcess` to succeed for well-behaved tokens; taxed/nonstandard tokens are handled, not hidden.
+
+## What You Can Build
+
+- Trust-minimized marketplaces: SRP-backed escrows for digital goods, services, or cross-border transactions.
+- Milestone-based funding: Progressive releases for grants, bounties, and R&D with refund guarantees on failure.
+- Group purchases and coordination: Cooperative buying or provisioning that only executes if enough parties lock.
+- DAO workflows: Guarded payouts, bounty claims, and contributor incentives with on-chain enforcement and off-chain signals.
+- Pre-orders and commitments: Time- or condition-gated locks that minimize griefing and enable credible commitments.
+
+Quick starts and deeper dives:
+- Overview: docs/overview.md
+- Architecture: docs/architecture.md
+- Design Decisions & Guarantees: docs/design-decisions.md
+- Integration Guide: docs/integration.md
+- Security (Model, Lemmas, Proof Sketches): docs/security.md
+
 # Figaro Protocol
 
 [![CI](https://github.com/adaliana/FigaroProtocol/actions/workflows/ci.yml/badge.svg)](https://github.com/adaliana/FigaroProtocol/actions/workflows/ci.yml)

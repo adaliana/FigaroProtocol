@@ -16,3 +16,15 @@
 
 ## Batch Flows
 - Batch add/lock patterns reduce gas overhead and UI roundtrips; see tests for examples.
+
+## Composability Pathways
+
+- Mechanism hook: After SRP add flows, Figaro invokes `IMechanism` so integrators can apply auctions, voting, reputation weighting, or custom selection without modifying the core.
+- Event surface: Indexers/frontends subscribe to `SrpCreated` and `SrpStateChanged`, mirroring state by `(srpId, versionHash)` for deterministic sync.
+- Frontend parity: Mirror fee math client-side to compute exact `approve()` amounts; minimal examples live under `frontend/`.
+
+## Token-Agnostic ERC-20 Handling
+
+- Probe defense: `createProcess` performs a 1-unit probe to detect fee-on-transfer tokens and avoid hidden tax slippage.
+- Pull fees: `SRPFees.collectFee(token, amount)` requires prior `approve()`; no implicit transfers.
+- Nonstandard tokens: Fee-on-transfer and taxed tokens are supported explicitly; UX should surface required approvals and potential tax.
