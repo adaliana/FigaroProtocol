@@ -21,6 +21,7 @@ jobs:
 
             - name: Enable auto-merge
               uses: peter-evans/enable-pull-request-automerge@v3
+                if: ${{ steps.meta.outputs.update-type == 'version-update:semver-minor' || steps.meta.outputs.update-type == 'version-update:semver-patch' }}
               with:
                   token: ${{ secrets.GITHUB_TOKEN }}
                   pull-request-number: ${{ github.event.pull_request.number }}
