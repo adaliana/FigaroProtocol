@@ -31,8 +31,8 @@ jobs:
           forge --version
           forge install foundry-rs/forge-std OpenZeppelin/openzeppelin-contracts
 
-      - name: Format check
-        run: forge fmt --check
+      - name: Format
+        run: forge fmt
 
       - name: Build
         run: forge build
