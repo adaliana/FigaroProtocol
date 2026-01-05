@@ -18,6 +18,11 @@ jobs:
               with:
                   version: nightly
 
+            - name: Install dependencies
+              run: |
+                  forge --version
+                  forge install --no-commit foundry-rs/forge-std OpenZeppelin/openzeppelin-contracts
+
             - name: Build
               run: forge build
 
