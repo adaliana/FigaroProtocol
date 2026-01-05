@@ -7,6 +7,10 @@ on:
 permissions:
     contents: write
 
+concurrency:
+    group: release-drafter-${{ github.ref }}
+    cancel-in-progress: true
+
 jobs:
     update_release_draft:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
