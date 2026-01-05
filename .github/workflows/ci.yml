@@ -15,6 +15,7 @@ concurrency:
 
 jobs:
   build-and-test:
+    timeout-minutes: 20
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
