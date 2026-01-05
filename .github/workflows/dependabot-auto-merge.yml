@@ -13,20 +13,27 @@ concurrency:
     cancel-in-progress: true
 
 jobs:
+    noop:
+        if: github.actor != 'dependabot[bot]'
+        runs-on: ubuntu-22.04
+        steps:
+            - name: Skip non-Dependabot PRs
+              run: echo "Non-Dependabot PR; skipping auto-merge."
+
     enable-auto-merge:
         timeout-minutes: 5
         if: github.actor == 'dependabot[bot]'
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-22.04
         steps:
-                        - name: Fetch metadata
-                            id: meta
-                            uses: dependabot/fetch-metadata@v2.4.0
+            - name: Fetch metadata
+              id: meta
+              uses: dependabot/fetch-metadata@v2.4.0
               with:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
-                        - name: Enable auto-merge
-                            uses: peter-evans/enable-pull-request-automerge@v3.0.0
-                if: ${{ steps.meta.outputs.update-type == 'version-update:semver-minor' || steps.meta.outputs.update-type == 'version-update:semver-patch' }}
+            - name: Enable auto-merge
+              uses: peter-evans/enable-pull-request-automerge@v3.0.0
+              if: ${{ steps.meta.outputs.update-type == 'version-update:semver-minor' || steps.meta.outputs.update-type == 'version-update:semver-patch' }}
               with:
                   token: ${{ secrets.GITHUB_TOKEN }}
                   pull-request-number: ${{ github.event.pull_request.number }}
