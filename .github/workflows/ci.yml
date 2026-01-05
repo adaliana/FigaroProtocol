@@ -29,6 +29,7 @@ jobs:
       - name: Install dependencies
         run: |
           forge --version
+          rm -rf lib/forge-std lib/openzeppelin-contracts || true
           forge install foundry-rs/forge-std@v1.9.6 OpenZeppelin/openzeppelin-contracts@v5.0.2
 
       - name: Format
