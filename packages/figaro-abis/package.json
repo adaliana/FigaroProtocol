@@ -1,0 +1,26 @@
+{
+    "name": "@adaliana/figaro-abis",
+    "version": "0.1.0",
+    "description": "Figaro protocol ABIs for integrators (Figaro, SRPFees)",
+    "license": "MIT",
+    "files": [
+        "dist/abi/*"
+    ],
+    "scripts": {
+        "build": "node scripts/export-abis.js"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/adaliana/FigaroProtocol.git"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "keywords": [
+        "figaro",
+        "srp",
+        "abis",
+        "solidity",
+        "defi"
+    ]
+}

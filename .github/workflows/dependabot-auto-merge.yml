@@ -1,6 +1,8 @@
 name: Dependabot Auto-Merge
 
 on:
+    pull_request:
+        types: [opened, synchronize, reopened, ready_for_review]
     pull_request_target:
         types: [opened, synchronize, reopened, ready_for_review]
 
@@ -13,28 +15,48 @@ concurrency:
     cancel-in-progress: true
 
 jobs:
-    noop:
-        if: github.actor != 'dependabot[bot]'
-        runs-on: ubuntu-22.04
-        steps:
-            - name: Skip non-Dependabot PRs
-              run: echo "Non-Dependabot PR; skipping auto-merge."
-
     enable-auto-merge:
-        timeout-minutes: 5
-        if: github.actor == 'dependabot[bot]'
         runs-on: ubuntu-22.04
+        timeout-minutes: 5
         steps:
+            - name: No-op for non-Dependabot PRs
+                if: github.actor != 'dependabot[bot]'
+                run: echo "Non-Dependabot PR; auto-merge not applicable."
+
             - name: Fetch metadata
-              id: meta
-              uses: dependabot/fetch-metadata@v2.4.0
-              with:
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                id: meta
+                if: github.actor == 'dependabot[bot]'
+                uses: dependabot/fetch-metadata@v2.4.0
+                with:
+                    github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Enable auto-merge
-              uses: peter-evans/enable-pull-request-automerge@v3.0.0
-              if: ${{ steps.meta.outputs.update-type == 'version-update:semver-minor' || steps.meta.outputs.update-type == 'version-update:semver-patch' }}
-              with:
-                  token: ${{ secrets.GITHUB_TOKEN }}
-                  pull-request-number: ${{ github.event.pull_request.number }}
-                  merge-method: merge
+                if: github.actor == 'dependabot[bot]' && (steps.meta.outputs.update-type == 'version-update:semver-minor' || steps.meta.outputs.update-type == 'version-update:semver-patch')
+                uses: peter-evans/enable-pull-request-automerge@v3.0.0
+                with:
+                    token: ${{ secrets.GITHUB_TOKEN }}
+                    pull-request-number: ${{ github.event.pull_request.number }}
+                    merge-method: merge
+
+    auto-merge:
+        runs-on: ubuntu-22.04
+        timeout-minutes: 5
+        steps:
+            - name: No-op for non-Dependabot PRs
+                if: github.actor != 'dependabot[bot]'
+                run: echo "Non-Dependabot PR; auto-merge not applicable."
+
+            - name: Fetch metadata
+                id: meta
+                if: github.actor == 'dependabot[bot]'
+                uses: dependabot/fetch-metadata@v2.4.0
+                with:
+                    github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Enable auto-merge
+                if: github.actor == 'dependabot[bot]' && (steps.meta.outputs.update-type == 'version-update:semver-minor' || steps.meta.outputs.update-type == 'version-update:semver-patch')
+                uses: peter-evans/enable-pull-request-automerge@v3.0.0
+                with:
+                    token: ${{ secrets.GITHUB_TOKEN }}
+                    pull-request-number: ${{ github.event.pull_request.number }}
+                    merge-method: merge

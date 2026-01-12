@@ -1,3 +1,9 @@
 # Code owners for the repository
-# Require review from @adaliana on all changes
-*       @adaliana
+# Scope reviews to core code only to avoid blocking docs/workflows/packages PRs.
+
+# Core contracts and tests
+src/**           @adaliana
+test/**          @adaliana
+
+# Subgraph mappings and schema
+subgraph/**      @adaliana

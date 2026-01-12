@@ -54,7 +54,7 @@ Quick starts and deeper dives:
 
 # Figaro Protocol
 
-[![CI](https://github.com/adaliana/FigaroProtocol/actions/workflows/ci.yml/badge.svg)](https://github.com/adaliana/FigaroProtocol/actions/workflows/ci.yml)
+[![CI](https://github.com/adaliana/FigaroProtocol/actions/workflows/ci.yml/badge.svg)](https://github.com/adaliana/FigaroProtocol/actions/workflows/ci.yml) [![Publish ABIs](https://github.com/adaliana/FigaroProtocol/actions/workflows/publish-abis.yml/badge.svg)](https://github.com/adaliana/FigaroProtocol/actions/workflows/publish-abis.yml)
 
 Figaro is a CEI-first coordination protocol for peer‑to‑peer marketplaces. It standardizes the SRP (Service Request Process) lifecycle—create, lock, release/refund—enforces a pull‑based fee model, and emits versioned events that make off‑chain indexing robust and idempotent.
 
@@ -107,6 +107,49 @@ forge inspect src/SRPFees.sol:SRPFees abi > artifacts/abi/SRPFees.json
 ```
 
 Prebuilt ABI JSONs are attached to each GitHub release under Assets (e.g., v1.0.1), so integrators can download without building locally.
+
+### NPM Package (Recommended)
+
+We publish prebuilt ABIs as an NPM package for integrators:
+
+- Package: `@adaliana/figaro-abis`
+- Contents: `dist/abi/Figaro.json`, `dist/abi/SRPFees.json` (Foundry artifacts with `abi` array)
+
+Install and use:
+```bash
+npm install --save-dev @adaliana/figaro-abis
+# Example consumer sync (env variables depend on your tooling)
+ABIS_PACKAGE=@adaliana/figaro-abis \
+ABIS_PACKAGE_FIGARO=dist/abi/Figaro.json \
+ABIS_PACKAGE_SRPFEES=dist/abi/SRPFees.json \
+node scripts/sync-abis.js
+```
+
+### Publishing via GitHub Actions
+
+This repo includes a workflow to publish the ABI package on release:
+
+- Workflow: `.github/workflows/publish-abis.yml`
+- Trigger: GitHub Release (type: `published`) or manual dispatch
+- Steps: Setup Node + Foundry, build `packages/figaro-abis`, `npm publish --access public`
+
+Configure NPM auth (required once):
+1. Create an NPM access token with publish rights (https://www.npmjs.com/settings/<your-user>/tokens)
+2. In this GitHub repository, add a repository secret named `NPM_TOKEN` containing that token
+	- Settings → Secrets and variables → Actions → New repository secret → Name: `NPM_TOKEN`
+3. Cut a release in GitHub (e.g., `v1.0.3`) to trigger the workflow
+
+Monorepo package location and build script:
+- Package folder: `packages/figaro-abis`
+- Build command: `npm run build` (runs Foundry build and exports to `dist/abi`)
+
+Local test (optional):
+```bash
+cd packages/figaro-abis
+npm run build
+npm pack --silent
+# Produces a .tgz you can install in a consumer repo for validation
+```
 
 ## Integration Quickstart
 - Get ABIs: download from GitHub Releases Assets (see above), or generate locally.
